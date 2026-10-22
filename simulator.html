@@ -7,28 +7,35 @@
 <style>
 :root{--bg:#F7F4EC;--card:#FFFDF8;--line:#D8D3C4;--ink:#172033;--sub:#4F5A6B;--a:#A8430A;--p:#1B559A;--q:#6E3490}
 *{box-sizing:border-box}
-html,body{height:100%;margin:0}
+html,body{margin:0}
 body{background:var(--bg);color:var(--ink);font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic",Meiryo,sans-serif}
-#wrap{height:100%;display:flex;flex-direction:column;gap:10px;padding:44px 12px 12px}
-#eq{background:var(--card);border:2px solid var(--line);border-radius:14px;padding:6px 16px;font-size:28px;font-weight:700;text-align:center;white-space:nowrap;overflow:hidden}
+#wrap{display:flex;flex-direction:row;flex-wrap:wrap;align-items:flex-start;gap:14px;padding:44px 12px 12px}
+#side{width:380px;display:flex;flex-direction:column;gap:10px}
+#eq{background:var(--card);border:2px solid var(--line);border-radius:14px;padding:8px 12px;font-size:26px;font-weight:700;text-align:center;white-space:nowrap;overflow:hidden}
 #eq .a{color:var(--a)}#eq .p{color:var(--p)}#eq .q{color:var(--q)}
-#ctl{display:flex;gap:10px;flex-wrap:wrap}
-.sl{flex:1;min-width:200px;display:flex;align-items:center;gap:10px;background:var(--card);border:2px solid var(--line);border-radius:14px;padding:6px 14px}
+#ctl{display:flex;flex-direction:column;gap:10px}
+.sl{display:flex;align-items:center;gap:10px;background:var(--card);border:2px solid var(--line);border-radius:14px;padding:8px 14px}
 .sl b{font-size:30px;font-style:italic;width:26px;text-align:center}
-.sl output{font-size:22px;font-weight:700;width:52px;text-align:right;font-variant-numeric:tabular-nums}
+.sl output{font-size:22px;font-weight:700;width:64px;text-align:right;font-variant-numeric:tabular-nums}
 .sl input{flex:1;min-width:80px;height:28px}
 .sl.a b,.sl.a output{color:var(--a)}.sl.p b,.sl.p output{color:var(--p)}.sl.q b,.sl.q output{color:var(--q)}
 .sl.a input{accent-color:var(--a)}.sl.p input{accent-color:var(--p)}.sl.q input{accent-color:var(--q)}
 .sl.off{opacity:.45}
 .sl .fix{font-size:14px;color:var(--sub);width:34px}
 #hint{min-height:22px;font-size:17px;font-weight:700;color:var(--sub);padding:0 4px}
-#cv{flex:1;min-height:240px;width:100%;background:#fff;border:2px solid var(--line);border-radius:14px;display:block}
+#mode{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:700;color:var(--sub)}
+#mode button{font:inherit;font-size:16px;padding:6px 14px;border-radius:20px;border:2px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+#mode button.on{background:#2B3A55;border-color:#2B3A55;color:#FFFDF8}
+#cv{box-sizing:content-box;flex:none;background:#fff;border:2px solid var(--line);border-radius:14px;display:block}
 </style>
 </head>
 <body>
 <div id="wrap">
-  <div id="eq"></div>
-  <div id="ctl"></div>
+  <div id="side">
+    <div id="eq"></div>
+    <div id="mode"></div>
+    <div id="ctl"></div>
+  </div>
   <canvas id="cv"></canvas>
 </div>
 
@@ -48,7 +55,7 @@ var ROOM = Q.get("room") || CONFIG.room;
 // ロック（unlock.js）を読み込む。先生の「すべて解除」で全部動く／担当のパスワードで、その担当の変数だけ動く
 (function () {
   var s = document.createElement("script");
-  s.src = "unlock.js?v=20261022234759";   // 古い unlock.js がキャッシュに残らないように、作った日時をつける
+  s.src = "unlock.js?v=20261022235746";   // 古い unlock.js がキャッシュに残らないように、作った日時をつける
   s.setAttribute("data-api", CONFIG.api);
   s.setAttribute("data-room", ROOM);
   s.setAttribute("data-min-stage", "2");   // 先生の合図は「すべて解除」だけ。担当は、パスワードで決まる
@@ -68,9 +75,22 @@ setTimeout(function () {
 
 var st = { a: 1, p: 0, q: 0 };
 var NAMES = ["a", "p", "q"];
-var RMAX = 5;                              // a, p, q の動かせる範囲（−RMAX 〜 RMAX）
+var RMAX = 10;                             // a, p, q の動かせる範囲（−RMAX 〜 RMAX）
+// グラフの大きさ（固定）。1マス＝UNIT px の正方形。x は −15〜15、y は −12〜18
+var UNIT = 20, XMIN = -15, XMAX = 15, YMIN = -12, YMAX = 18;
+var ML = 34, MB = 26, MT = 8, MR = 10;
+var CW = (XMAX - XMIN) * UNIT + ML + MR, CH = (YMAX - YMIN) * UNIT + MT + MB;
+var mode = "snap";                         // "snap"＝0.1ずつ（きれいな値） ／ "smooth"＝なめらか
 var ctl = document.getElementById("ctl"), eq = document.getElementById("eq");
 var cv = document.getElementById("cv"), c = cv.getContext("2d");
+cv.style.width = CW + "px"; cv.style.height = CH + "px";
+var modeBox = document.getElementById("mode"), modeBtns = {};
+var ml = document.createElement("span"); ml.textContent = "動かし方："; modeBox.appendChild(ml);
+[["snap", "0.1ずつ"], ["smooth", "なめらか"]].forEach(function (m) {
+  var b = document.createElement("button"); b.type = "button"; b.textContent = m[1];
+  b.onclick = function () { setMode(m[0]); };
+  modeBtns[m[0]] = b; modeBox.appendChild(b);
+});
 var rows = {}, inputs = {}, outs = {}, fixes = {};
 
 var hint = document.createElement("div");
@@ -82,7 +102,7 @@ NAMES.forEach(function (k) {
   d.className = "sl " + k + " off";
   var b = document.createElement("b"); b.textContent = k;
   var r = document.createElement("input");
-  r.type = "range"; r.min = -RMAX; r.max = RMAX; r.step = 0.5; r.value = st[k]; r.disabled = true;
+  r.type = "range"; r.min = -RMAX; r.max = RMAX; r.step = 0.1; r.value = st[k]; r.disabled = true;
   r.setAttribute("aria-label", k);
   var o = document.createElement("output");
   var f = document.createElement("span"); f.className = "fix"; f.textContent = "固定";
@@ -92,6 +112,18 @@ NAMES.forEach(function (k) {
   r.oninput = function () { st[k] = parseFloat(r.value); o.textContent = fmt(st[k]); draw(); };
   o.textContent = fmt(st[k]);
 });
+
+// 動かし方：0.1ずつ（0.1の倍数に、ぴたっと止まる） ／ なめらか（細かく、連続で動く）
+function setMode(m) {
+  mode = m;
+  NAMES.forEach(function (k) {
+    inputs[k].step = m === "snap" ? "0.1" : "any";
+    if (m === "snap") { st[k] = Math.round(st[k] * 10) / 10; inputs[k].value = st[k]; }
+    outs[k].textContent = fmt(st[k]);
+  });
+  Object.keys(modeBtns).forEach(function (n) { modeBtns[n].className = n === m ? "on" : ""; });
+  draw();
+}
 
 // いまの状態に合わせて、動かせるスライダーを決める
 //   先生が「すべて解除」…… a・p・q すべて動く
@@ -118,7 +150,8 @@ window.addEventListener("simulator:unlock", applyStage);
 window.addEventListener("simulator:stage", applyStage);
 window.addEventListener("simulator:lock", applyStage);
 
-function fmt(v) { return (v < 0 ? "−" : "") + String(Math.abs(v)); }
+function rnd(v) { return Math.round(v * 100) / 100; }          // 小数第2位まで（ゆれを消す）
+function fmt(v) { v = rnd(v); return (v < 0 ? "−" : "") + String(Math.abs(v)); }
 
 function eqText() {
   var a = st.a, p = st.p, q = st.q;
@@ -127,20 +160,18 @@ function eqText() {
   sp("", "y = ");
   sp("a", fmt(a));
   sp("", "(x ");
-  sp("p", (p >= 0 ? "− " : "+ ") + Math.abs(p));
+  sp("p", (p >= 0 ? "− " : "+ ") + rnd(Math.abs(p)));
   sp("", ")² ");
-  sp("q", (q >= 0 ? "+ " : "− ") + Math.abs(q));
+  sp("q", (q >= 0 ? "+ " : "− ") + rnd(Math.abs(q)));
 }
 
-var XMIN = -10, XMAX = 10, YMIN = -10, YMAX = 30;
 function draw() {
   eqText();
   var dpr = window.devicePixelRatio || 1;
-  var W = cv.clientWidth, H = cv.clientHeight;
+  var W = CW, H = CH;
   if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
   c.clearRect(0, 0, W, H);
-  var ML = 30, MB = 24, MT = 8, MR = 12;
   var gx = function (x) { return ML + (x - XMIN) / (XMAX - XMIN) * (W - ML - MR); };
   var gy = function (y) { return MT + (YMAX - y) / (YMAX - YMIN) * (H - MT - MB); };
   var i, x, y;
@@ -152,26 +183,26 @@ function draw() {
   // 5ごとの太い線
   c.strokeStyle = "#D8D3C4"; c.beginPath();
   for (y = -10; y <= YMAX; y += 5) { c.moveTo(gx(XMIN), gy(y)); c.lineTo(gx(XMAX), gy(y)); }
+  for (x = -15; x <= XMAX; x += 5) { c.moveTo(gx(x), gy(YMAX)); c.lineTo(gx(x), gy(YMIN)); }
   c.stroke();
   // 軸
   c.strokeStyle = "#172033"; c.lineWidth = 1.8; c.beginPath();
   c.moveTo(gx(0), gy(YMAX)); c.lineTo(gx(0), gy(YMIN));
   c.moveTo(gx(XMIN), gy(0)); c.lineTo(gx(XMAX), gy(0)); c.stroke();
-  // 目盛りの数字
-  c.fillStyle = "#4F5A6B"; c.font = "13px sans-serif"; c.textAlign = "center"; c.textBaseline = "top";
-  var xs = W < 560 ? 2 : 1;
-  for (x = -9; x <= 9; x += xs) { if (x !== 0) c.fillText(String(x).replace("-", "−"), gx(x), Math.min(gy(0) + 4, H - MB + 4)); }
+  // 目盛りの数字（1ごと。10以上は5ごと）
+  c.fillStyle = "#4F5A6B"; c.font = "11px sans-serif"; c.textAlign = "center"; c.textBaseline = "top";
+  for (x = XMIN; x <= XMAX; x++) { if (x !== 0 && (Math.abs(x) < 10 || x % 5 === 0)) c.fillText(String(x).replace("-", "−"), gx(x), gy(0) + 3); }
   c.textAlign = "right"; c.textBaseline = "middle";
-  for (y = -10; y <= 30; y += 5) { if (y !== 0) c.fillText(String(y).replace("-", "−"), gx(0) - 5, gy(y)); }
-  c.fillText("O", gx(0) - 5, gy(0) + 10);
+  for (y = YMIN; y <= YMAX; y++) { if (y !== 0 && (Math.abs(y) < 10 || y % 5 === 0)) c.fillText(String(y).replace("-", "−"), gx(0) - 4, gy(y)); }
+  c.fillText("O", gx(0) - 4, gy(0) + 9);
   // 基準 y = x² （点線）
   c.save(); c.beginPath(); c.rect(ML, MT, W - ML - MR, H - MT - MB); c.clip();
   c.setLineDash([7, 6]); c.strokeStyle = "#8B93A0"; c.lineWidth = 2; c.beginPath();
-  for (i = 0; i <= 280; i++) { x = XMIN + i * (XMAX - XMIN) / 280; if (i === 0) c.moveTo(gx(x), gy(x * x)); else c.lineTo(gx(x), gy(x * x)); }
+  for (i = 0; i <= 600; i++) { x = XMIN + i * (XMAX - XMIN) / 600; if (i === 0) c.moveTo(gx(x), gy(x * x)); else c.lineTo(gx(x), gy(x * x)); }
   c.stroke(); c.setLineDash([]);
   // 動かす曲線
   c.strokeStyle = "#1B4FD8"; c.lineWidth = 3; c.lineJoin = "round"; c.beginPath();
-  for (i = 0; i <= 280; i++) { x = XMIN + i * (XMAX - XMIN) / 280; y = st.a * (x - st.p) * (x - st.p) + st.q; if (i === 0) c.moveTo(gx(x), gy(y)); else c.lineTo(gx(x), gy(y)); }
+  for (i = 0; i <= 600; i++) { x = XMIN + i * (XMAX - XMIN) / 600; y = st.a * (x - st.p) * (x - st.p) + st.q; if (i === 0) c.moveTo(gx(x), gy(y)); else c.lineTo(gx(x), gy(y)); }
   c.stroke();
   // 整数の x の点
   c.fillStyle = "#F28C28"; c.strokeStyle = "#172033"; c.lineWidth = 1.5;
@@ -182,9 +213,8 @@ function draw() {
   c.fillStyle = "#D62828"; c.font = "italic 20px serif"; c.textAlign = "left"; c.textBaseline = "bottom";
   c.fillText("V", gx(st.p) + 10, gy(st.q) - 6);
 }
-window.addEventListener("resize", draw);
 applyStage();
-draw();
+setMode("snap");
 </script>
 </body>
 </html>
