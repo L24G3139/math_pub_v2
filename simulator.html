@@ -21,11 +21,7 @@ body{background:var(--bg);color:var(--ink);font-family:"Hiragino Sans","Noto San
 .sl.a input{accent-color:var(--a)}.sl.p input{accent-color:var(--p)}.sl.q input{accent-color:var(--q)}
 .sl.off{opacity:.45}
 .sl .fix{font-size:14px;color:var(--sub);width:34px}
-#who{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:18px;font-weight:700}
-.wb{font:inherit;font-size:22px;font-style:italic;font-weight:800;width:48px;height:40px;border-radius:12px;border:3px solid var(--line);background:var(--card);cursor:pointer}
-.wb.a{color:var(--a)}.wb.p{color:var(--p)}.wb.q{color:var(--q)}
-.wb.sel.a{background:#FBE6D6;border-color:var(--a)}.wb.sel.p{background:#DDE9F8;border-color:var(--p)}.wb.sel.q{background:#EADCF3;border-color:var(--q)}
-#hint{font-size:15px;font-weight:400;color:var(--sub)}
+#hint{min-height:22px;font-size:17px;font-weight:700;color:var(--sub);padding:0 4px}
 #cv{flex:1;min-height:240px;width:100%;background:#fff;border:2px solid var(--line);border-radius:14px;display:block}
 </style>
 </head>
@@ -47,17 +43,15 @@ var CONFIG = {
 /* ===================================== */
 
 var Q = new URLSearchParams(location.search);
-var ROLE = Q.get("role");                 // a / p / q … 担当をあらかじめ決めておくとき（なくてよい）
-if (ROLE !== "a" && ROLE !== "p" && ROLE !== "q") ROLE = "";
 var ROOM = Q.get("room") || CONFIG.room;
 
-// ロック（unlock.js）を読み込む。段階1（担当の変数だけ）から開く。担当は、生徒が画面で選ぶ
+// ロック（unlock.js）を読み込む。先生の「すべて解除」で全部動く／担当のパスワードで、その担当の変数だけ動く
 (function () {
   var s = document.createElement("script");
-  s.src = "unlock.js?v=20261022233418";   // 古い unlock.js がキャッシュに残らないように、作った日時をつける
+  s.src = "unlock.js?v=20261022234759";   // 古い unlock.js がキャッシュに残らないように、作った日時をつける
   s.setAttribute("data-api", CONFIG.api);
   s.setAttribute("data-room", ROOM);
-  s.setAttribute("data-min-stage", "1");
+  s.setAttribute("data-min-stage", "2");   // 先生の合図は「すべて解除」だけ。担当は、パスワードで決まる
   s.setAttribute("data-pw-minutes", String(CONFIG.pwMinutes));
   s.setAttribute("data-hash", CONFIG.hash);
   document.body.appendChild(s);
@@ -77,26 +71,11 @@ var NAMES = ["a", "p", "q"];
 var RMAX = 5;                              // a, p, q の動かせる範囲（−RMAX 〜 RMAX）
 var ctl = document.getElementById("ctl"), eq = document.getElementById("eq");
 var cv = document.getElementById("cv"), c = cv.getContext("2d");
-var role = ROLE;
-try { if (!role) role = sessionStorage.getItem("simRole-" + ROOM) || ""; } catch (e) {}
-var rows = {}, inputs = {}, outs = {}, fixes = {}, whoBtns = {};
+var rows = {}, inputs = {}, outs = {}, fixes = {};
 
-// 担当の選択
-var who = document.createElement("div");
-who.id = "who";
-var whoLab = document.createElement("span");
-whoLab.textContent = "あなたの担当は？";
-who.appendChild(whoLab);
-NAMES.forEach(function (k) {
-  var b = document.createElement("button");
-  b.type = "button"; b.className = "wb " + k; b.textContent = k;
-  b.onclick = function () { chooseRole(k); };
-  whoBtns[k] = b; who.appendChild(b);
-});
-var hint = document.createElement("span");
+var hint = document.createElement("div");
 hint.id = "hint";
-who.appendChild(hint);
-ctl.parentNode.insertBefore(who, ctl);
+ctl.parentNode.insertBefore(hint, ctl);
 
 NAMES.forEach(function (k) {
   var d = document.createElement("div");
@@ -114,31 +93,26 @@ NAMES.forEach(function (k) {
   o.textContent = fmt(st[k]);
 });
 
-function chooseRole(k) {
-  role = k;
-  try { sessionStorage.setItem("simRole-" + ROOM, k); } catch (e) {}
-  st = { a: 1, p: 0, q: 0 };                 // 担当を変えたら、もとの値にもどす
-  NAMES.forEach(function (n) { inputs[n].value = st[n]; outs[n].textContent = fmt(st[n]); });
-  applyStage();
-  draw();
-}
-
-// いまの段階（0=ロック／1=担当の変数だけ／2=すべて）に合わせて、動かせるスライダーを決める
+// いまの状態に合わせて、動かせるスライダーを決める
+//   先生が「すべて解除」…… a・p・q すべて動く
+//   パスワードで開いた…… そのパスワードの担当（a / p / q）だけ動く
+var lastRole = "";
 function applyStage() {
   var s = window.simStage || 0;
-  var byPw = window.simBy === "password" && window.simPwRole;
-  if (byPw) role = window.simPwRole;         // パスワードで開いたときは、そのパスワードの担当に決まる
+  var role = (window.simBy === "password") ? (window.simPwRole || "") : "";
+  if (role !== lastRole) {                     // 担当が変わったら、もとの値にもどす
+    lastRole = role;
+    st = { a: 1, p: 0, q: 0 };
+    NAMES.forEach(function (n) { inputs[n].value = st[n]; outs[n].textContent = fmt(st[n]); });
+    draw();
+  }
   NAMES.forEach(function (k) {
-    var on = s >= 2 || (s === 1 && role === k);
+    var on = s >= 2 || (s >= 1 && role === k);
     inputs[k].disabled = !on;
     rows[k].className = "sl " + k + (on ? "" : " off");
     fixes[k].style.display = on ? "none" : "inline";
-    whoBtns[k].className = "wb " + k + (role === k ? " sel" : "");
   });
-  who.style.display = s >= 2 ? "none" : "flex";
-  whoLab.style.display = byPw ? "none" : "";
-  NAMES.forEach(function (k) { whoBtns[k].style.display = byPw ? "none" : ""; });
-  hint.textContent = s === 1 ? (byPw ? "パスワードの担当（" + role + "）だけ動かせます" : role ? "選んだ変数だけ動かせます" : "担当を選ぶと、その変数が動かせます") : "";
+  hint.textContent = s >= 2 ? "すべての変数が動かせます" : (s >= 1 && role ? "あなたの担当は " + role + "。" + role + " だけ動かせます" : "");
 }
 window.addEventListener("simulator:unlock", applyStage);
 window.addEventListener("simulator:stage", applyStage);
