@@ -54,7 +54,7 @@ var ROOM = Q.get("room") || CONFIG.room;
 // ロック（unlock.js）を読み込む。段階1（担当の変数だけ）から開く。担当は、生徒が画面で選ぶ
 (function () {
   var s = document.createElement("script");
-  s.src = "unlock.js";
+  s.src = "unlock.js?v=20261022233418";   // 古い unlock.js がキャッシュに残らないように、作った日時をつける
   s.setAttribute("data-api", CONFIG.api);
   s.setAttribute("data-room", ROOM);
   s.setAttribute("data-min-stage", "1");
@@ -62,6 +62,15 @@ var ROOM = Q.get("room") || CONFIG.room;
   s.setAttribute("data-hash", CONFIG.hash);
   document.body.appendChild(s);
 })();
+
+// unlock.js が古い・読めないときは、画面の下に知らせる（このとき、担当を選んでも動かない）
+setTimeout(function () {
+  if (typeof window.simStage !== "undefined") return;
+  var m = document.createElement("div");
+  m.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:2147483647;background:#A8430A;color:#fff;padding:10px 16px;font-size:16px;font-weight:700;text-align:center";
+  m.textContent = "unlock.js が古いか、読みこめていません。simulator.html と同じ場所に、新しい unlock.js を置いてください。";
+  document.body.appendChild(m);
+}, 6000);
 
 var st = { a: 1, p: 0, q: 0 };
 var NAMES = ["a", "p", "q"];
