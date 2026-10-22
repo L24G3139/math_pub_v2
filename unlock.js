@@ -30,6 +30,7 @@
 (function () {
   var sc = document.currentScript || document.querySelector('script[data-api]');
   if (!sc) return;
+  window.simStage = 0;   // 読み込めた目印（ページ側が、unlock.js の新旧を見分ける）
   var api = sc.getAttribute('data-api') || '';
   var room = sc.getAttribute('data-room') || 'main';
   var minStage = parseInt(sc.getAttribute('data-min-stage') || '1', 10);
@@ -72,7 +73,7 @@
     var card = el('div', 'background:#FFFDF8;border:2px solid #D8D3C4;border-radius:24px;padding:32px 40px;max-width:460px;width:80%;text-align:center;box-sizing:border-box;');
     card.appendChild(el('div', 'font-size:56px;line-height:1;', '🔒'));
     title = el('div', 'font-size:28px;font-weight:800;margin:12px 0 6px;', 'ロック中');
-    sub = el('div', 'font-size:18px;color:#4F5A6B;margin-bottom:16px;', '先生の合図があるまで、動かせません。');
+    sub = el('div', 'font-size:18px;color:#4F5A6B;margin-bottom:16px;', '先生の合図、または、自分の担当のパスワードで開きます。');
     card.appendChild(title); card.appendChild(sub);
     var row = el('div', 'display:flex;align-items:center;justify-content:center;gap:8px;font-size:16px;color:#4F5A6B;');
     dot = el('span', 'display:inline-block;width:12px;height:12px;border-radius:50%;background:#B8B2A0;');
@@ -135,7 +136,7 @@
     by = ''; endAt = 0; stage = 0; pwRole = '';
     bar.style.display = 'none';
     title.textContent = reason === 'time' ? '時間です' : 'ロック中';
-    sub.textContent = reason === 'time' ? 'シミュレーターは、ここまでです。' : '先生の合図があるまで、動かせません。';
+    sub.textContent = reason === 'time' ? 'シミュレーターは、ここまでです。' : '先生の合図、または、自分の担当のパスワードで開きます。';
     ov.style.display = 'flex';
     requestAnimationFrame(function () { ov.style.opacity = '1'; });
     fire('simulator:lock');
